@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oficina d'arquitectura · ANBEM</title>
+<style>
+  :root { --ink:#2b2a27; --muted:#6f6c64; --paper:#f6f3ec; --line:#d9d4c7; --accent:#b4553a; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; font-family: "Helvetica Neue", Arial, sans-serif; color:var(--ink); background:var(--paper); overflow:hidden; }
+  #scene { position:fixed; inset:0; }
+  header { position:fixed; top:16px; left:16px; background:rgba(246,243,236,.92); border:1px solid var(--line); border-radius:10px; padding:12px 16px; max-width:320px; }
+  header h1 { font-size:18px; font-weight:500; margin:0 0 4px; letter-spacing:.02em; }
+  header p { font-size:13px; color:var(--muted); margin:0; line-height:1.5; }
+  #panel { position:fixed; top:16px; right:16px; width:300px; max-height:calc(100% - 32px); overflow:auto; background:rgba(255,255,255,.96); border:1px solid var(--line); border-radius:10px; padding:16px; display:none; }
+  #panel h2 { font-size:20px; font-weight:500; margin:0; }
+  #panel .rol { font-size:13px; color:var(--muted); margin:2px 0 12px; }
+  #panel ul { margin:0; padding-left:18px; font-size:14px; line-height:1.6; }
+  #panel .estat { font-size:11px; padding:1px 6px; border-radius:6px; background:#e3eefb; color:#1f4f86; margin-left:4px; white-space:nowrap; }
+  #panel .buit { font-size:14px; color:var(--muted); }
+  #panel button { margin-top:14px; border:1px solid var(--line); background:#fff; border-radius:6px; padding:6px 10px; cursor:pointer; font:inherit; font-size:13px; }
+  #tip { position:fixed; pointer-events:none; background:var(--ink); color:#fff; font-size:12px; padding:4px 8px; border-radius:6px; display:none; }
+  footer { position:fixed; bottom:12px; left:16px; font-size:12px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<header>
+  <h1>Oficina d'arquitectura</h1>
+  <p>Arrossega per girar, roda per apropar-te. Clica una taula per veure la feina de cada agent. Cada full de paper damunt la taula és una tasca oberta.</p>
+</header>
+<aside id="panel">
+  <h2 id="p-nom"></h2>
+  <div class="rol" id="p-rol"></div>
+  <div id="p-feina"></div>
+  <button id="p-tanca">Tanca</button>
+</aside>
+<div id="tip"></div>
+<footer>ANBEMarquitecture · URV Campus Bellissens</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const AGENTS = [
+  { nom:"Rigoberto", rol:"Cap d'oficina", color:0x6f6c64, pos:[0, 4.2], rot:Math.PI, gran:true,
+    feina:[], nota:"Coordina l'equip i porta el tauler d'entregues." },
+  { nom:"Maria", rol:"Secretària", color:0x3f8f5a, pos:[-6, 1.2], rot:Math.PI/2,
+    feina:[], nota:"Esperant les dates d'entrega per planificar la setmana." },
+  { nom:"Matilda", rol:"Redactora de memòries", color:0x6b5bc4, pos:[-6, -2.8], rot:Math.PI/2,
+    feina:[{t:"Memòria descriptiva · Instal·lacions 2", e:"En curs"}] },
+  { nom:"Rafael", rol:"Assessor de construcció", color:0xc0703a, pos:[-2.2, -5.4], rot:0,
+    feina:[{t:"Memòria constructiva · Instal·lacions 2"}] },
+  { nom:"Margarita", rol:"Crítica i referents", color:0xb8467a, pos:[2.2, -5.4], rot:0,
+    feina:[{t:"Desenvolupar la proposta · Campus", e:"En curs"},{t:"A3 sobre el temps cíclic"},{t:"A3 curt / mitjà / llarg termini"},{t:"Pràctica setmanal · Història 3"}] },
+  { nom:"Lluís", rol:"Assistent d'Història", color:0xc9a227, pos:[6, -2.8], rot:-Math.PI/2,
+    feina:[], nota:"Taula buida: la pràctica d'Història encara la té la Margarita." },
+  { nom:"Eduard", rol:"Tutor d'estudi", color:0x2f6fb0, pos:[6, 1.2], rot:-Math.PI/2,
+    feina:[{t:"Estudiar estructures · Tècnica 3"},{t:"Estudiar amb apunts · Construcció I"},{t:"Tasques · Anglès B1"}] },
+];
+
+const container = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf6f3ec);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(14, 15, 16);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.6, 0);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI / 2.15;
+controls.minDistance = 6;
+controls.maxDistance = 45;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d0bf, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 0.75);
+sun.position.set(10, 18, 8);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left:-14, right:14, top:14, bottom:-14 });
+scene.add(sun);
+
+const mat = c => new THREE.MeshStandardMaterial({ color:c, roughness:.85 });
+function box(w, h, d, c, x, y, z, parent) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c));
+  m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true;
+  (parent || scene).add(m); return m;
+}
+
+// Planta: terra, sòcol i murs baixos tallats (com una maqueta)
+const W = 18, D = 15;
+box(W, 0.2, D, 0xe8e2d4, 0, -0.1, 0);
+const grid = new THREE.GridHelper(W, 18, 0xd2cab8, 0xd2cab8);
+grid.scale.z = D / W; grid.position.y = 0.01; scene.add(grid);
+const wallH = 2.6, wallC = 0xfbfaf6;
+box(W, wallH, 0.25, wallC, 0, wallH/2, -D/2);
+box(0.25, wallH, D, wallC, -W/2, wallH/2, 0);
+// finestral al mur del fons
+box(7, 1.4, 0.05, 0x9cc3d8, 0, 1.5, -D/2 + 0.14).material.transparent = true;
+// porta al mur esquerre
+box(0.06, 2.1, 1.2, 0x8b6b4a, -W/2 + 0.15, 1.05, 5.2);
+// catifa central i taula de reunions
+box(5.2, 0.02, 3.6, 0xd9c9a8, 0, 0.02, -0.6);
+box(3.2, 0.08, 1.6, 0xc9a77c, 0, 0.75, -0.6);
+[[-1.4,-0.6],[1.4,-0.6]].forEach(([x,z]) => box(0.1, 0.72, 1.3, 0x6b5a48, x, 0.36, z));
+// maqueta damunt la taula de reunions (les dunes del campus)
+for (let i = 0; i < 6; i++) {
+  const dune = new THREE.Mesh(new THREE.SphereGeometry(0.28 + (i%3)*0.06, 16, 10, 0, Math.PI*2, 0, Math.PI/2), mat(0x9fbf7a));
+  dune.scale.y = 0.5; dune.position.set(-1 + i*0.4, 0.79, -0.6 + (i%2 ? 0.3 : -0.25)); dune.castShadow = true; scene.add(dune);
+}
+// plantes
+function planta(x, z) {
+  box(0.5, 0.5, 0.5, 0xb08a64, x, 0.25, z);
+  const f = new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 10), mat(0x5f8f4e));
+  f.position.set(x, 1.05, z); f.castShadow = true; scene.add(f);
+}
+planta(-8.2, -6.6); planta(8.2, -6.6); planta(-8.2, 6.4);
+// prestatgeria amb llibres
+box(3, 2, 0.45, 0xc9a77c, -4.5, 1, -D/2 + 0.4);
+const llibres = [0xb4553a,0x2f6fb0,0xc9a227,0x3f8f5a,0x6b5bc4,0x6f6c64];
+for (let r = 0; r < 3; r++) for (let i = 0; i < 9; i++)
+  box(0.2, 0.42, 0.3, llibres[(i + r) % llibres.length], -5.7 + i*0.3, 0.38 + r*0.62, -D/2 + 0.45);
+
+// Etiqueta amb el nom (sprite de canvas)
+function etiqueta(nom, rol, color) {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 160;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(255,255,255,0.95)';
+  g.beginPath(); g.roundRect ? g.roundRect(4,4,504,152,24) : g.rect(4,4,504,152); g.fill();
+  g.fillStyle = '#' + color.toString(16).padStart(6,'0'); g.fillRect(4, 4, 14, 152);
+  g.fillStyle = '#2b2a27'; g.font = '500 60px Helvetica, Arial, sans-serif'; g.fillText(nom, 40, 74);
+  g.fillStyle = '#6f6c64'; g.font = '38px Helvetica, Arial, sans-serif'; g.fillText(rol, 40, 128);
+  const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, depthTest:false }));
+  s.scale.set(3.4, 1.06, 1); s.renderOrder = 10; return s;
+}
+
+// Llocs de treball
+const clicables = [];
+AGENTS.forEach(a => {
+  const g = new THREE.Group();
+  g.position.set(a.pos[0], 0, a.pos[1]); g.rotation.y = a.rot; scene.add(g);
+  const tw = a.gran ? 3 : 2.2, td = a.gran ? 1.3 : 1.1;
+  const top = box(tw, 0.08, td, 0xf2ece0, 0, 0.76, 0, g);
+  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz]) => box(0.07, 0.74, 0.07, 0x3d3a35, sx*(tw/2-0.1), 0.37, sz*(td/2-0.1), g));
+  // pantalla
+  box(0.9, 0.55, 0.05, 0x24221f, 0, 1.15, -td/2 + 0.2, g);
+  box(0.08, 0.3, 0.08, 0x24221f, 0, 0.92, -td/2 + 0.22, g);
+  // làmpada de flexo
+  box(0.06, 0.6, 0.06, a.color, tw/2 - 0.25, 1.1, -td/2 + 0.2, g);
+  box(0.25, 0.1, 0.18, a.color, tw/2 - 0.35, 1.38, -td/2 + 0.3, g);
+  // fulls (un per tasca oberta)
+  a.feina.forEach((f, i) => {
+    const full = box(0.42, 0.012, 0.3, f.e === 'En curs' ? 0xfff2c4 : 0xffffff, -tw/2 + 0.4, 0.81 + i*0.016, td/2 - 0.3, g);
+    full.rotation.y = (i % 2 ? 0.12 : -0.08);
+  });
+  // cadira
+  box(0.6, 0.08, 0.6, 0x3d3a35, 0, 0.48, td/2 + 0.45, g);
+  box(0.6, 0.6, 0.08, 0x3d3a35, 0, 0.8, td/2 + 0.75, g);
+  box(0.08, 0.44, 0.08, 0x3d3a35, 0, 0.22, td/2 + 0.45, g);
+  // agent
+  const cos = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.75, 18), mat(a.color));
+  cos.position.set(0, 0.92, td/2 + 0.45); cos.castShadow = true; g.add(cos);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.2, 18, 14), mat(0xead8c2));
+  cap.position.set(0, 1.48, td/2 + 0.45); cap.castShadow = true; g.add(cap);
+  // etiqueta
+  const lab = etiqueta(a.nom, a.rol, a.color);
+  lab.position.set(a.pos[0], 2.75, a.pos[1]); scene.add(lab);
+  // zona clicable
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(tw + 0.4, 2, td + 1.6), new THREE.MeshBasicMaterial({ visible:false }));
+  hit.position.set(0, 1, 0.4); hit.userData.agent = a; g.add(hit); clicables.push(hit);
+});
+
+// Interacció
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+const tip = document.getElementById('tip'), panel = document.getElementById('panel');
+function pick(e) {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  ray.setFromCamera(mouse, camera);
+  const h = ray.intersectObjects(clicables)[0];
+  return h ? h.object.userData.agent : null;
+}
+renderer.domElement.addEventListener('pointermove', e => {
+  const a = pick(e);
+  renderer.domElement.style.cursor = a ? 'pointer' : 'grab';
+  if (a) { tip.style.display = 'block'; tip.style.left = (e.clientX + 12) + 'px'; tip.style.top = (e.clientY + 12) + 'px';
+    tip.textContent = a.nom + ' · ' + (a.feina.length ? a.feina.length + (a.feina.length === 1 ? ' tasca' : ' tasques') : 'sense tasques'); }
+  else tip.style.display = 'none';
+});
+let down = null;
+renderer.domElement.addEventListener('pointerdown', e => down = [e.clientX, e.clientY]);
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
+  const a = pick(e); if (!a) return;
+  document.getElementById('p-nom').textContent = a.nom;
+  document.getElementById('p-rol').textContent = a.rol;
+  const f = document.getElementById('p-feina');
+  f.innerHTML = '';
+  if (a.feina.length) {
+    const ul = document.createElement('ul');
+    a.feina.forEach(t => { const li = document.createElement('li'); li.textContent = t.t;
+      if (t.e) { const s = document.createElement('span'); s.className = 'estat'; s.textContent = t.e; li.appendChild(s); }
+      ul.appendChild(li); });
+    f.appendChild(ul);
+  }
+  if (a.nota) { const p = document.createElement('p'); p.className = 'buit'; p.textContent = a.nota; f.appendChild(p); }
+  panel.style.display = 'block';
+});
+document.getElementById('p-tanca').onclick = () => panel.style.display = 'none';
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+(function loop() { controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop); })();
+</script>
+</body>
+</html>
